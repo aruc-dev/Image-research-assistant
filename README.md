@@ -1,6 +1,8 @@
-# Image Research Assistant
+# Image Research Assistant (Beta - In Development)
 
 An intelligent research assistant that combines visual analysis and Wikipedia search capabilities to answer questions about images. Upload an image of a landmark, artwork, or any object, and the assistant will identify it and provide detailed research from Wikipedia.
+
+**⚠️ Note: This project is currently in beta and not fully tested. Some features may not work as expected.**
 
 ## Features
 

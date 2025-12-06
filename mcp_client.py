@@ -44,7 +44,7 @@ class State(TypedDict):
 # --- LLM Configuration ---
 def get_llm():
     """Get the configured Gemini LLM from environment variables"""
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError("GOOGLE_API_KEY not found in environment variables")
@@ -64,16 +64,14 @@ def create_graph(tools: list):
 
     # --- Updated system prompt to reflect new capabilities ---
     prompt_template = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert research assistant with access to these specific tools:\n"
-               "- load_image_from_path: Loads images from file paths\n"
-               "- get_image_description: Analyzes and describes images\n"  
-               "- fetch_wikipedia_info: Searches Wikipedia for information\n\n"
-               "When a user provides an image path, you MUST use these tools in sequence:\n"
-               "1. Call load_image_from_path with the image path\n"
-               "2. Call get_image_description to analyze the loaded image\n"
-               "3. Call fetch_wikipedia_info to research relevant topics\n"
-               "4. Provide a comprehensive response\n\n"
-               "IMPORTANT: You have these tools available - use them!"),
+        ("system", "You are an expert research assistant with access to image analysis and Wikipedia research tools. "
+               "When a user provides a file path (especially one ending in .jpg, .jpeg, .png, .gif, .bmp, etc.), "
+               "automatically treat this as a request to analyze that image. Use your tools in this sequence:\n"
+               "1. Load the image from the provided path\n"
+               "2. Analyze and describe what you see in the image\n"
+               "3. Research relevant topics on Wikipedia based on what you found\n"
+               "4. Provide a comprehensive response with both your image analysis and research findings\n\n"
+               "For other requests, use your tools appropriately to provide helpful research and information."),        
         MessagesPlaceholder("messages")
     ])
 
@@ -133,7 +131,7 @@ async def run_cli_mode(agent):
                     config={"configurable": {"thread_id": session_id}}
                 )
                 
-                # Print the assistant's response
+                # Print the assistant's response (simplified like working sample)
                 if response and "messages" in response and len(response["messages"]) > 0:
                     last_message = response["messages"][-1]
                     
