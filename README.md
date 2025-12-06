@@ -19,42 +19,77 @@ An intelligent research assistant that combines visual analysis and Wikipedia se
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.11+ (recommended: Python 3.11.14)
 - Google API key for Gemini models ([Get one here](https://ai.google.dev/))
 
 ## Installation
 
-1. Clone the repository:
+1. **Clone the repository:**
 ```bash
 git clone <repository-url>
 cd Image-research-assistant
 ```
 
-2. Install required dependencies:
+2. **Create and activate a Python virtual environment:**
 ```bash
-pip install gradio langgraph langchain-google-genai langchain-mcp-adapters mcp wikipedia google-genai python-dotenv
+# Create virtual environment with Python 3.11
+python3.11 -m venv venv
+
+# Or use your default Python if it's 3.11+
+python -m venv venv
+
+# Activate virtual environment (macOS/Linux)
+source venv/bin/activate
+
+# Or on Windows
+# venv\Scripts\activate
 ```
 
-3. Set up your environment variables:
+3. **Install required dependencies:**
 ```bash
-cp .env.example .env
+pip install -r requirements.txt
 ```
 
-4. Edit the `.env` file and add your Google API key:
-```
+4. **Set up your environment variables:**
+Create a `.env` file in the project root:
+```bash
+# Google Gemini Configuration
 GOOGLE_API_KEY=your-actual-google-api-key-here
+GEMINI_MODEL=gemini-2.0-flash-exp
 ```
 
 Get your Google API key from [Google AI Studio](https://ai.google.dev/).
 
 ## Usage
 
-Start the application:
+The application supports both web UI and CLI modes:
+
+### Web UI Mode (Default)
 ```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Launch web interface
 python mcp_client.py
+# or explicitly
+python mcp_client.py --mode ui
 ```
 
-The Gradio interface will launch at `http://localhost:7860` (or `http://0.0.0.0:7860`)
+The Gradio interface will launch at `http://localhost:7860`
+
+### CLI Mode
+```bash
+# Activate virtual environment  
+source venv/bin/activate
+
+# Launch CLI interface
+python mcp_client.py --mode cli
+```
+
+In CLI mode:
+- Type your question normally for research queries
+- Provide a file path to analyze an image (e.g., `/path/to/image.jpg`)
+- Type 'quit' or 'exit' to end the session
 
 ### Example Queries
 
