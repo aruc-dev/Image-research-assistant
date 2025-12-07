@@ -14,6 +14,48 @@ load_dotenv()
 # Initialize the FastMCP server
 mcp = FastMCP("VisualAnalysisServer")
 
+def _analyze_image_content(base64_string: str, mime_type: str) -> str:
+    """Helper function to perform the actual image analysis using the LLM."""
+    try:
+        model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        api_key = os.getenv("GOOGLE_API_KEY")
+        
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not found in environment variables")
+
+        llm = ChatGoogleGenerativeAI(
+            model=model,
+            temperature=0,
+            google_api_key=api_key,
+            max_retries=0
+        )
+
+        prompt_text = (
+            "Analyze this image in detail. Provide a concise, one-paragraph description. "
+            "If it is a famous landmark, work of art, or specific location, identify it by name. "
+            "Focus on the most important and defining elements in the image that would be useful for a web search. "
+            "For example, instead of 'a building', say 'the Eiffel Tower in Paris'. "
+            "Do not add any conversational filler; return only the description."
+        )
+
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt_text},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{base64_string}"
+                    }
+                }
+            ]
+        )
+
+        response = llm.invoke([message])
+        return response.content.strip()
+    except Exception as e:
+        # Re-raise to be handled by the caller
+        raise e
+
 @mcp.tool()
 def get_image_description(base64_image_string: str, mime_type: str) -> str:
     """
@@ -30,50 +72,11 @@ def get_image_description(base64_image_string: str, mime_type: str) -> str:
         A single string containing a detailed description of the image.
         Returns an error message if analysis fails.
     """
-    try:        
-        # Use the same LLM setup as the main client
-        model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        api_key = os.getenv("GOOGLE_API_KEY")
-        
-        # Create LangChain vision model
-        llm = ChatGoogleGenerativeAI(
-            model=model,
-            temperature=0,
-            google_api_key=api_key,
-            max_retries=0
-        )
-        
-        # Prompt text
-        prompt_text = (
-            "Analyze this image in detail. Provide a concise, one-paragraph description. "
-            "If it is a famous landmark, work of art, or specific location, identify it by name. "
-            "Focus on the most important and defining elements in the image that would be useful for a web search. "
-            "For example, instead of 'a building', say 'the Eiffel Tower in Paris'. "
-            "Do not add any conversational filler; return only the description."
-        )
-
-        # Create message with image
-        message = HumanMessage(
-            content=[
-                {"type": "text", "text": prompt_text},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{mime_type};base64,{base64_image_string}"
-                    }
-                }
-            ]
-        )
-        
-        # Get response
-        response = llm.invoke([message])
-        
-        # Return the description
-        description = response.content.strip()
-        return description
-
+    try:
+        return _analyze_image_content(base64_image_string, mime_type)
     except Exception as e:
-        error_msg = f"Error analyzing image: {e}"
+        error_msg = f"Error analyzing image: {str(e)}"
+        # Log the full traceback for debugging purposes (optional, depending on logging setup)
         return error_msg
         
 @mcp.tool()
@@ -107,39 +110,7 @@ def analyze_image_from_path(file_path: str) -> str:
         if not mime_type:
             mime_type = "image/jpeg"  # Default to JPEG
 
-        # Analyze the image
-        model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        api_key = os.getenv("GOOGLE_API_KEY")
-
-        llm = ChatGoogleGenerativeAI(
-            model=model,
-            temperature=0,
-            google_api_key=api_key,
-            max_retries=0
-        )
-
-        prompt_text = (
-            "Analyze this image in detail. Provide a concise, one-paragraph description. "
-            "If it is a famous landmark, work of art, or specific location, identify it by name. "
-            "Focus on the most important and defining elements in the image that would be useful for a web search. "
-            "For example, instead of 'a building', say 'the Eiffel Tower in Paris'. "
-            "Do not add any conversational filler; return only the description."
-        )
-
-        message = HumanMessage(
-            content=[
-                {"type": "text", "text": prompt_text},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{mime_type};base64,{base64_string}"
-                    }
-                }
-            ]
-        )
-
-        response = llm.invoke([message])
-        return response.content.strip()
+        return _analyze_image_content(base64_string, mime_type)
 
     except Exception as e:
         return f"Error analyzing image: {str(e)}"

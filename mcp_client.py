@@ -100,6 +100,10 @@ async def run_ui_mode(agent):
     """Launch the Gradio web UI"""
     print("The Image Research Assistant is ready and launching on a web UI.")
 
+    # Capture the main loop where the agent and its MCP clients were created.
+    # This is crucial because MCP clients use pipes/subprocesses bound to this loop.
+    main_loop = asyncio.get_running_loop()
+
     # --- Gradio UI Implementation ---
     with gr.Blocks() as demo:
         # Header
@@ -248,24 +252,17 @@ async def run_ui_mode(agent):
                 session_id = str(uuid.uuid4())
                 print(f"DEBUG: Using session ID: {session_id}")
 
-                # Get or create event loop
-                try:
-                    loop = asyncio.get_running_loop()
-                    # If we're in a running loop, we need to use run_in_executor
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        response = executor.submit(
-                            lambda: asyncio.run(agent.ainvoke(
-                                {"messages": [HumanMessage(content=full_message)]},
-                                config={"configurable": {"thread_id": session_id}}
-                            ))
-                        ).result()
-                except RuntimeError:
-                    # No running loop, safe to use asyncio.run()
-                    response = asyncio.run(agent.ainvoke(
+                # Execute the agent on the main loop safely
+                # We use run_coroutine_threadsafe because Gradio callbacks run in a thread pool (sync)
+                # This ensures the agent (and its MCP clients) run on the loop they were created on.
+                future = asyncio.run_coroutine_threadsafe(
+                    agent.ainvoke(
                         {"messages": [HumanMessage(content=full_message)]},
                         config={"configurable": {"thread_id": session_id}}
-                    ))
+                    ),
+                    main_loop
+                )
+                response = future.result()
                 
                 print(f"DEBUG: Got response: {response}")
 
@@ -305,8 +302,15 @@ async def run_ui_mode(agent):
             [text_box, chatbot, image_box]
         )
 
-    # Launch the Gradio web server.
-    demo.launch(server_name="0.0.0.0")
+    # Launch the Gradio web server without blocking the main thread/loop
+    demo.launch(server_name="0.0.0.0", prevent_thread_lock=True)
+
+    print("Web UI running. Press Ctrl+C to stop.")
+    # Keep the application running
+    try:
+        await asyncio.Event().wait()
+    except asyncio.CancelledError:
+        pass
 
 # --- Main function to initialize agent and run web UI ---
 async def main():
