@@ -1,9 +1,7 @@
 import gradio as gr
 import asyncio
 import os
-import argparse
 from dotenv import load_dotenv
-from mcp import StdioServerParameters
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.checkpoint.memory import MemorySaver
@@ -65,13 +63,14 @@ def create_graph(tools: list):
     # --- Updated system prompt to reflect new capabilities ---
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", "You are an expert research assistant with access to image analysis and Wikipedia research tools. "
-               "When a user provides a file path (especially one ending in .jpg, .jpeg, .png, .gif, .bmp, etc.), "
-               "automatically treat this as a request to analyze that image. Use your tools in this sequence:\n"
-               "1. Load the image from the provided path\n"
-               "2. Analyze and describe what you see in the image\n"
-               "3. Research relevant topics on Wikipedia based on what you found\n"
-               "4. Provide a comprehensive response with both your image analysis and research findings\n\n"
-               "For other requests, use your tools appropriately to provide helpful research and information."),        
+               "CRITICAL: When a user provides a file path (look for paths like /private/var/folders/... or similar), "
+               "you MUST use your tools. Do NOT make assumptions or hallucinate. "
+               "ALWAYS follow this exact sequence for image analysis:\n"
+               "1. MUST call analyze_image_from_path with the file path to get the image description\n"
+               "2. MUST call fetch_wikipedia_info with the description to get more information\n"
+               "3. Provide your actual findings from the tools\n\n"
+               "NEVER claim to have analyzed an image without actually calling the tools first. "
+               "If a tool call fails, report the error. Do not make up results."),
         MessagesPlaceholder("messages")
     ])
 
@@ -96,85 +95,6 @@ def create_graph(tools: list):
     return graph.compile(checkpointer=MemorySaver())
 
 # --- CLI Chat Mode ---
-async def run_cli_mode(agent):
-    """Interactive CLI mode for chatting with the assistant"""
-    print("\n" + "="*60)
-    print("Image Research Assistant - CLI Mode")
-    print("="*60)
-    print("\nCommands:")
-    print("  - Type your question normally for research queries")
-    print("  - Provide a file path to analyze an image (e.g., /path/to/image.jpg)")
-    print("  - Type 'quit' or 'exit' to end the session")
-    print("="*60 + "\n")
-
-    session_id = "cli-session"
-
-    while True:
-        try:
-            # Get user input
-            user_input = input("\n🧑 You: ").strip()
-
-            # Check for exit commands
-            if user_input.lower() in ['quit', 'exit', 'q']:
-                print("\n👋 Goodbye!")
-                break
-
-            if not user_input:
-                continue
-
-            # Process the message with the agent
-            print("\n🤖 Assistant: ", end="", flush=True)
-
-            try:
-                response = await agent.ainvoke(
-                    {"messages": [HumanMessage(content=user_input)]},
-                    config={"configurable": {"thread_id": session_id}}
-                )
-                
-                # Print the assistant's response (simplified like working sample)
-                if response and "messages" in response and len(response["messages"]) > 0:
-                    last_message = response["messages"][-1]
-                    
-                    # Handle different message types
-                    if hasattr(last_message, 'content'):
-                        bot_message = last_message.content
-                    elif isinstance(last_message, dict) and 'content' in last_message:
-                        bot_message = last_message['content']
-                    else:
-                        bot_message = str(last_message)
-                    
-                    if bot_message and bot_message.strip():
-                        print(f"\n{bot_message}")
-                    else:
-                        # Check for specific error conditions
-                        if hasattr(last_message, 'response_metadata') and 'finish_reason' in last_message.response_metadata:
-                            finish_reason = last_message.response_metadata.get('finish_reason')
-                            if finish_reason == 'MALFORMED_FUNCTION_CALL':
-                                print("\n⚠️ Function call error. Please try rephrasing your request.")
-                            else:
-                                print("\nNo response received.")
-                        else:
-                            print("\nNo response received.")
-                else:
-                    print("\nInvalid response format.")
-                    
-            except Exception as response_error:
-                error_msg = str(response_error)
-                if "quota" in error_msg.lower() or "429" in error_msg:
-                    print("\nAPI quota exceeded")
-                else:
-                    print(f"\nError: {response_error}")
-
-        except KeyboardInterrupt:
-            print("\n\n👋 Goodbye!")
-            break
-        except Exception as e:
-            error_msg = str(e)
-            if "quota" in error_msg.lower() or "429" in error_msg:
-                print("\nAPI quota exceeded")
-            else:
-                print(f"\nError: {e}")
-
 # --- UI Mode with Gradio ---
 async def run_ui_mode(agent):
     """Launch the Gradio web UI"""
@@ -200,29 +120,73 @@ async def run_ui_mode(agent):
         
         # This function handles the agent's response
         # It now accepts an image_path from the gr.Image component
-        async def get_agent_response(user_text, image_path, chat_history):
-            # If an image is provided, combine it with the text to form the message
-            if image_path:
-                # The agent will see both the text and the path and chain the tools
-                full_message = f"{user_text} {image_path}"
-                # Add the user's turn to the chat history in Gradio 6.0 format
-                chat_history.append({"role": "user", "content": f"[Image: {image_path}]\n{user_text}"})
-            else:
-                # If no image, just use the text
-                full_message = user_text
-                chat_history.append({"role": "user", "content": user_text})
+        def get_agent_response(user_text, image_path, chat_history):
+            try:
+                print(f"DEBUG: Received request - Text: '{user_text}', Image: '{image_path}'")
+                
+                # If an image is provided, combine it with the text to form the message
+                if image_path:
+                    # The agent will see both the text and the path and chain the tools
+                    full_message = f"{user_text} {image_path}"
+                    # Add the user's turn to the chat history in Gradio 6.0 format
+                    chat_history.append({"role": "user", "content": f"[Image: {image_path}]\n{user_text}"})
+                    print(f"DEBUG: Processing image request with message: {full_message}")
+                else:
+                    # If no image, just use the text
+                    full_message = user_text
+                    chat_history.append({"role": "user", "content": user_text})
+                    print(f"DEBUG: Processing text-only request: {full_message}")
 
-            # The agent.ainvoke call remains the same, but now with the potentially combined message
-            response = await agent.ainvoke(
-                {"messages": [HumanMessage(content=full_message)]},
-                config={"configurable": {"thread_id": "gradio-session"}}
-            )
+                # Run the agent using the existing event loop
+                import uuid
 
-            # The agent's final response is added to the history in Gradio 6.0 format
-            bot_message = response["messages"][-1].content
-            chat_history.append({"role": "assistant", "content": bot_message})
+                # Use fresh session ID for each request
+                session_id = str(uuid.uuid4())
+                print(f"DEBUG: Using session ID: {session_id}")
 
-            return "", chat_history, None # Clear textbox, return updated history, clear image box
+                # Get or create event loop
+                try:
+                    loop = asyncio.get_running_loop()
+                    # If we're in a running loop, we need to use run_in_executor
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        response = executor.submit(
+                            lambda: asyncio.run(agent.ainvoke(
+                                {"messages": [HumanMessage(content=full_message)]},
+                                config={"configurable": {"thread_id": session_id}}
+                            ))
+                        ).result()
+                except RuntimeError:
+                    # No running loop, safe to use asyncio.run()
+                    response = asyncio.run(agent.ainvoke(
+                        {"messages": [HumanMessage(content=full_message)]},
+                        config={"configurable": {"thread_id": session_id}}
+                    ))
+                
+                print(f"DEBUG: Got response: {response}")
+
+                # The agent's final response is added to the history in Gradio 6.0 format
+                if response and "messages" in response and len(response["messages"]) > 0:
+                    bot_message = response["messages"][-1].content
+                    print(f"DEBUG: Bot message: {bot_message}")
+
+                    # Check if the message is empty (could indicate a malformed function call)
+                    if not bot_message or bot_message.strip() == "":
+                        bot_message = "I encountered an error analyzing the image. This could be due to the image size or format. Please try with a different image."
+                        print("DEBUG: Empty bot message - likely a malformed function call error")
+                else:
+                    bot_message = "Sorry, I couldn't process your request. Please try again."
+                    print("DEBUG: No valid response received")
+                    
+                chat_history.append({"role": "assistant", "content": bot_message})
+
+                return "", chat_history, None # Clear textbox, return updated history, clear image box
+                
+            except Exception as e:
+                error_msg = f"Error processing request: {str(e)}"
+                print(f"DEBUG ERROR: {error_msg}")
+                chat_history.append({"role": "assistant", "content": error_msg})
+                return "", chat_history, None
 
         # Wire up the submit button to the handler function
         submit_btn.click(
@@ -234,9 +198,9 @@ async def run_ui_mode(agent):
     # Launch the Gradio web server.
     demo.launch(server_name="0.0.0.0")
 
-# --- Main function to initialize agent and run selected mode ---
-async def main(mode="ui"):
-    """Initialize the agent and run in the selected mode"""
+# --- Main function to initialize agent and run web UI ---
+async def main():
+    """Initialize the agent and run the web UI"""
     # This setup runs only ONCE when the application starts
     print("Initializing Image Research Assistant...")
     print("Connecting to MCP servers...")
@@ -247,36 +211,9 @@ async def main(mode="ui"):
 
     print(f"✓ Agent initialized with {len(all_tools)} tools\n")
 
-    # Run in the selected mode
-    if mode == "cli":
-        await run_cli_mode(agent)
-    else:
-        await run_ui_mode(agent)
+    # Launch the web UI
+    await run_ui_mode(agent)
 
 if __name__ == "__main__":
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(
-        description="Image Research Assistant - Analyze images and research with Wikipedia",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Launch web UI (default)
-  python mcp_client.py
-  python mcp_client.py --mode ui
-
-  # Launch CLI mode
-  python mcp_client.py --mode cli
-        """
-    )
-
-    parser.add_argument(
-        "--mode",
-        choices=["ui", "cli"],
-        default="ui",
-        help="Run mode: 'ui' for web interface (default), 'cli' for command-line chat"
-    )
-
-    args = parser.parse_args()
-
-    # Run the application in the selected mode
-    asyncio.run(main(mode=args.mode))
+    # Run the Image Research Assistant with web UI
+    asyncio.run(main())

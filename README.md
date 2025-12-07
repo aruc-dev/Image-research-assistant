@@ -1,16 +1,15 @@
-# Image Research Assistant (Beta - In Development)
+# Image Research Assistant
 
 An intelligent research assistant that combines visual analysis and Wikipedia search capabilities to answer questions about images. Upload an image of a landmark, artwork, or any object, and the assistant will identify it and provide detailed research from Wikipedia.
 
-**⚠️ Note: This project is currently in beta and not fully tested. Some features may not work as expected.**
-
 ## Features
 
-- **Visual Analysis**: Deep image analysis using Google Gemini 2.5 Flash to identify landmarks, artworks, and objects
+- **Visual Analysis**: Deep image analysis using Google Gemini 2.0 Flash to identify landmarks, artworks, and objects
 - **Intelligent Research**: Automatic Wikipedia search based on image content
-- **Tool Chaining**: Seamlessly combines vision and search tools to provide comprehensive answers
-- **Conversational Interface**: Clean Gradio web UI for easy interaction
+- **Streamlined Tool Pipeline**: Optimized single-step image analysis for fast, reliable results
+- **Web Interface**: Clean Gradio web UI for easy interaction
 - **Multi-Tool Architecture**: Built on the Model Context Protocol (MCP) for modular, extensible tool integration
+- **Robust Error Handling**: Graceful handling of edge cases and malformed requests
 
 ## How It Works
 
@@ -57,41 +56,24 @@ Create a `.env` file in the project root:
 ```bash
 # Google Gemini Configuration
 GOOGLE_API_KEY=your-actual-google-api-key-here
-GEMINI_MODEL=gemini-2.0-flash-exp
+GEMINI_MODEL=gemini-2.0-flash
 ```
 
 Get your Google API key from [Google AI Studio](https://ai.google.dev/).
 
 ## Usage
 
-The application supports both web UI and CLI modes:
+Launch the web interface:
 
-### Web UI Mode (Default)
 ```bash
 # Activate virtual environment
 source venv/bin/activate
 
 # Launch web interface
 python mcp_client.py
-# or explicitly
-python mcp_client.py --mode ui
 ```
 
-The Gradio interface will launch at `http://localhost:7860`
-
-### CLI Mode
-```bash
-# Activate virtual environment  
-source venv/bin/activate
-
-# Launch CLI interface
-python mcp_client.py --mode cli
-```
-
-In CLI mode:
-- Type your question normally for research queries
-- Provide a file path to analyze an image (e.g., `/path/to/image.jpg`)
-- Type 'quit' or 'exit' to end the session
+The Gradio interface will launch at `http://localhost:7860`. Open this URL in your browser to start using the assistant.
 
 ### Example Queries
 
@@ -111,8 +93,9 @@ The application uses a three-component architecture:
 
 ### 2. Visual Analysis Server (`visual_analysis_server.py`)
 - MCP server providing image analysis tools
-- `load_image_from_path`: Loads and encodes images
-- `get_image_description`: Analyzes images using Gemini Vision
+- `analyze_image_from_path`: Combined tool that loads and analyzes images in a single step using Gemini Vision
+- `load_image_from_path`: Loads and encodes images to Base64 (legacy support)
+- `get_image_description`: Analyzes Base64-encoded images using Gemini Vision (legacy support)
 
 ### 3. Wikipedia Server (`wikipedia_server.py`)
 - MCP server providing Wikipedia search
@@ -143,10 +126,17 @@ The system uses LangGraph to create an intelligent agent that:
 
 1. Receives user input (text + optional image)
 2. Decides which tools to use based on the query
-3. Chains tools together (e.g., analyze image → search Wikipedia)
-4. Synthesizes information into a coherent response
+3. Executes tools efficiently (streamlined single-step image analysis)
+4. Chains additional tools as needed (e.g., image analysis → Wikipedia search)
+5. Synthesizes information into a coherent response
 
 The agent automatically determines the best tool execution strategy without hardcoded workflows.
+
+### Recent Improvements
+
+- **Optimized Tool Pipeline**: Replaced two-step image processing (load → analyze) with a single streamlined `analyze_image_from_path` tool for better reliability
+- **Fixed Event Loop Handling**: Resolved asyncio conflicts in Gradio callbacks for stable concurrent request processing
+- **Enhanced Error Handling**: Added graceful handling for malformed function calls and empty responses
 
 ## Extending the System
 
@@ -168,13 +158,32 @@ The `.env.example` file provides a template for configuration.
 
 ## Troubleshooting
 
-**Server won't start**: Ensure all dependencies are installed and the `.env` file is configured with your API key
+**Server won't start**:
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- Verify the `.env` file is configured with your API key
+- Check that port 7860 is not already in use
 
-**"API key not found" error**: Make sure you've created a `.env` file (copy from `.env.example`) and added your Google API key
+**"API key not found" error**:
+- Make sure you've created a `.env` file and added your Google API key
+- Verify the key is valid at [Google AI Studio](https://ai.google.dev/)
 
-**Image analysis fails**: Verify your Google API key has access to Gemini models and is correctly set in the `.env` file
+**Image upload shows no response**:
+- This issue has been fixed in the latest version with optimized tool pipeline and event loop handling
+- If you still encounter issues, try refreshing the page and uploading a different image format (JPEG/PNG)
 
-**Wikipedia searches fail**: Check your internet connection and ensure the `wikipedia` package is installed
+**Image analysis fails**:
+- Verify your Google API key has access to Gemini models
+- Check that the image file is not corrupted
+- Try with a smaller image size (large images may take longer to process)
+
+**Wikipedia searches fail**:
+- Check your internet connection
+- Ensure the `wikipedia` package is installed: `pip install wikipedia`
+
+**UI appears stuck or frozen**:
+- Refresh the browser page
+- Restart the server: Stop the Python process and run `python mcp_client.py` again
+- Check the terminal for any error messages
 
 ## License
 
