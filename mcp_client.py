@@ -102,22 +102,126 @@ async def run_ui_mode(agent):
 
     # --- Gradio UI Implementation ---
     with gr.Blocks() as demo:
-        gr.Markdown("# Image Research Assistant")
-        chatbot = gr.Chatbot(label="Conversation", height=500)
-        
-        with gr.Row():
-            # The gr.Image component will handle the upload
-            # Setting type="filepath" is crucial, as it gives our tool a path to work with
-            image_box = gr.Image(type="filepath", label="Upload an Image")
-            
-            # The textbox is for the user's text query.
-            text_box = gr.Textbox(
-                label="Ask a question about the image or a general research question.",
-                scale=2 # Makes the textbox wider than the image box
-            )
+        # Header
+        gr.HTML("""
+            <style>
+                .header-text {
+                    text-align: center;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border-radius: 10px;
+                    margin-bottom: 20px;
+                }
+                .header-text h1 {
+                    margin: 0;
+                    font-size: 2.5em;
+                    font-weight: 700;
+                }
+                .header-text p {
+                    margin: 10px 0 0 0;
+                    font-size: 1.1em;
+                    opacity: 0.95;
+                }
+                .example-card {
+                    padding: 15px;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    border-left: 4px solid #667eea;
+                    margin: 10px 0;
+                    color: #000;
+                    font-size: 0.95em;
+                }
+                .example-card strong {
+                    color: #667eea;
+                    font-weight: 700;
+                }
+                .footer {
+                    text-align: center;
+                    padding: 20px;
+                    color: #666;
+                    margin-top: 30px;
+                    border-top: 1px solid #ddd;
+                }
+            </style>
+            <div class="header-text">
+                <h1>🔍 Image Research Assistant</h1>
+                <p>Analyze images using AI vision and get detailed research from Wikipedia</p>
+            </div>
+        """)
 
-        submit_btn = gr.Button("Submit", variant="primary")
-        
+        # Main chat interface
+        with gr.Row():
+            with gr.Column(scale=2):
+                chatbot = gr.Chatbot(
+                    label="Conversation",
+                    height=500
+                )
+
+                # Input area
+                with gr.Row():
+                    text_box = gr.Textbox(
+                        label="Your Message",
+                        placeholder="Ask a question about the image or any research topic..."
+                    )
+                    submit_btn = gr.Button("Send", variant="primary")
+
+                image_box = gr.Image(
+                    type="filepath",
+                    label="📎 Upload Image (Optional)",
+                    height=150
+                )
+
+            # Sidebar with examples and instructions
+            with gr.Column(scale=1):
+                gr.Markdown("""
+                ### 💡 How to Use
+
+                1. **Upload an image** (optional)
+                2. **Type your question** in the text box
+                3. **Click Send** to get AI-powered insights
+
+                ---
+
+                ### ✨ Example Questions
+                """)
+
+                gr.HTML("""
+                    <div class="example-card">
+                        <strong>🏛️ Landmarks:</strong><br>
+                        <span style="color: #000 !important;">"What is this building and when was it constructed?"</span>
+                    </div>
+                    <div class="example-card">
+                        <strong>🎨 Artwork:</strong><br>
+                        <span style="color: #000 !important;">"Who created this painting and what style is it?"</span>
+                    </div>
+                    <div class="example-card">
+                        <strong>🌍 General Research:</strong><br>
+                        <span style="color: #000 !important;">"Tell me about the Roman Colosseum"</span>
+                    </div>
+                """)
+
+                gr.Markdown("""
+                ---
+
+                ### ⚡ Features
+
+                - AI-powered image analysis
+                - Wikipedia research integration
+                - Landmark identification
+                - Contextual information
+                """)
+
+        # Footer
+        gr.HTML("""
+            <div class="footer">
+                <p>Powered by Google Gemini 2.0 Flash & Wikipedia API</p>
+                <p style="font-size: 0.9em; margin-top: 10px;">
+                    Built with LangGraph, MCP, and Gradio
+                </p>
+            </div>
+        """)
+
         # This function handles the agent's response
         # It now accepts an image_path from the gr.Image component
         def get_agent_response(user_text, image_path, chat_history):
@@ -188,10 +292,16 @@ async def run_ui_mode(agent):
                 chat_history.append({"role": "assistant", "content": error_msg})
                 return "", chat_history, None
 
-        # Wire up the submit button to the handler function
+        # Wire up the submit button and Enter key to the handler function
         submit_btn.click(
-            get_agent_response, 
-            [text_box, image_box, chatbot], 
+            get_agent_response,
+            [text_box, image_box, chatbot],
+            [text_box, chatbot, image_box]
+        )
+
+        text_box.submit(
+            get_agent_response,
+            [text_box, image_box, chatbot],
             [text_box, chatbot, image_box]
         )
 
