@@ -1,7 +1,7 @@
+import logging
+from typing import List, Dict, Any
 import wikipedia
 from mcp.server.fastmcp import FastMCP
-from typing import List, Dict, Any
-import logging
 
 mcp = FastMCP("WikipediaSearch")
 
@@ -42,9 +42,9 @@ def fetch_wikipedia_info(query: str, num_articles: int = 1) -> List[Dict[str, An
             except wikipedia.PageError:
                 # If a specific page fails to load, skip it
                 continue
-        
+
         if not articles_info:
-             return [{"error": f"Could not load page details for query: '{query}'"}]
+            return [{"error": f"Could not load page details for query: '{query}'"}]
 
         return articles_info
 

@@ -66,14 +66,6 @@ server_configs = {
 
 To add new MCP servers, extend this dictionary and ensure the server implements FastMCP.
 
-## API Keys
-
-**IMPORTANT**: API keys are currently hardcoded in the source files:
-- `mcp_client.py:40` - Gemini API key for main LLM
-- `visual_analysis_server.py:48` - Gemini API key for vision model
-
-These should be moved to environment variables before committing or sharing.
-
 ## LangGraph State Machine
 
 The agent uses a simple but powerful graph structure (`mcp_client.py:59-69`):

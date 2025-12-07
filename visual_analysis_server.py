@@ -1,13 +1,12 @@
 import os
 import base64
 import mimetypes
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
-from typing import List
 from google import genai
 from google.genai import types
-import logging
 
 # Load environment variables from .env file
 load_dotenv()
@@ -39,7 +38,7 @@ def get_image_description(base64_image_string: str, mime_type: str) -> str:
             mime_type=mime_type,
             data=image_bytes
         )
-        
+
         # --- prompt text ---
         prompt_text = (
             "Analyze this image in detail. Provide a concise, one-paragraph description. "
@@ -50,19 +49,22 @@ def get_image_description(base64_image_string: str, mime_type: str) -> str:
         )
 
         # Using gemini-1.5-pro for more accurate vision analysis
-        model = genai.Client('gemini-1.5-pro', google_api_key=os.getenv("GOOGLE_API_KEY"))
+        client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
         # The generate_content call now uses the correctly typed image_part object
-        response = model.generate_content([image_part, prompt_text])
-        
+        response = client.models.generate_content(
+            model='gemini-1.5-pro',
+            contents=[image_part, prompt_text]
+        )
+
         # --- Return the single description string directly ---
         # The .strip() removes any leading/trailing newlines or spaces from the model's output
         description = response.text.strip()
-        
+
         return description
 
     except Exception as e:
         return f"Error analyzing image: {e}"
-        
+
 @mcp.tool()
 def load_image_from_path(file_path: str) -> dict:
     """
@@ -85,16 +87,16 @@ def load_image_from_path(file_path: str) -> dict:
         # Open the file in binary read mode
         with open(image_path, "rb") as f:
             image_data = f.read()
-        
+
         # Encode the binary data to a Base64 string
         base64_string = base64.b64encode(image_data).decode("utf-8")
-        
+
         # Guess the MIME type from the file extension
         mime_type, _ = mimetypes.guess_type(image_path)
-        
+
         if not mime_type:
             mime_type = "application/octet-stream"  # A generic default
-            
+
         return {
             "base64_image_string": base64_string,
             "mime_type": mime_type

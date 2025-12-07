@@ -1,15 +1,14 @@
-import gradio as gr
 import asyncio
 import os
 import argparse
+from typing import Annotated, List
+from typing_extensions import TypedDict
+import gradio as gr
 from dotenv import load_dotenv
-from mcp import StdioServerParameters
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import tools_condition, ToolNode
-from typing import Annotated, List
-from typing_extensions import TypedDict
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -26,12 +25,12 @@ load_dotenv()
 server_configs = {
     "wikipedia": {
         "command": "python",
-        "args": ["wikipedia_server.py"], 
+        "args": ["wikipedia_server.py"],
         "transport": "stdio",
     },
     "vision": {
         "command": "python",
-        "args": ["visual_analysis_server.py"], 
+        "args": ["visual_analysis_server.py"],
         "transport": "stdio",
     }
 }
@@ -50,8 +49,8 @@ def get_llm():
         raise ValueError("GOOGLE_API_KEY not found in environment variables")
     print(f"Using Google Gemini with model: {model}")
     return ChatGoogleGenerativeAI(
-        model=model, 
-        temperature=0, 
+        model=model,
+        temperature=0,
         google_api_key=api_key,
         max_retries=0  # Disable retries to avoid verbose logging
     )
@@ -71,7 +70,7 @@ def create_graph(tools: list):
                "2. Analyze and describe what you see in the image\n"
                "3. Research relevant topics on Wikipedia based on what you found\n"
                "4. Provide a comprehensive response with both your image analysis and research findings\n\n"
-               "For other requests, use your tools appropriately to provide helpful research and information."),        
+               "For other requests, use your tools appropriately to provide helpful research and information."),
         MessagesPlaceholder("messages")
     ])
 
@@ -130,11 +129,11 @@ async def run_cli_mode(agent):
                     {"messages": [HumanMessage(content=user_input)]},
                     config={"configurable": {"thread_id": session_id}}
                 )
-                
+
                 # Print the assistant's response (simplified like working sample)
                 if response and "messages" in response and len(response["messages"]) > 0:
                     last_message = response["messages"][-1]
-                    
+
                     # Handle different message types
                     if hasattr(last_message, 'content'):
                         bot_message = last_message.content
@@ -142,7 +141,7 @@ async def run_cli_mode(agent):
                         bot_message = last_message['content']
                     else:
                         bot_message = str(last_message)
-                    
+
                     if bot_message and bot_message.strip():
                         print(f"\n{bot_message}")
                     else:
@@ -157,7 +156,7 @@ async def run_cli_mode(agent):
                             print("\nNo response received.")
                 else:
                     print("\nInvalid response format.")
-                    
+
             except Exception as response_error:
                 error_msg = str(response_error)
                 if "quota" in error_msg.lower() or "429" in error_msg:
@@ -184,12 +183,12 @@ async def run_ui_mode(agent):
     with gr.Blocks() as demo:
         gr.Markdown("# Image Research Assistant")
         chatbot = gr.Chatbot(label="Conversation", height=500)
-        
+
         with gr.Row():
             # The gr.Image component will handle the upload
             # Setting type="filepath" is crucial, as it gives our tool a path to work with
             image_box = gr.Image(type="filepath", label="Upload an Image")
-            
+
             # The textbox is for the user's text query.
             text_box = gr.Textbox(
                 label="Ask a question about the image or a general research question.",
@@ -197,7 +196,7 @@ async def run_ui_mode(agent):
             )
 
         submit_btn = gr.Button("Submit", variant="primary")
-        
+
         # This function handles the agent's response
         # It now accepts an image_path from the gr.Image component
         async def get_agent_response(user_text, image_path, chat_history):
@@ -226,8 +225,8 @@ async def run_ui_mode(agent):
 
         # Wire up the submit button to the handler function
         submit_btn.click(
-            get_agent_response, 
-            [text_box, image_box, chatbot], 
+            get_agent_response,
+            [text_box, image_box, chatbot],
             [text_box, chatbot, image_box]
         )
 
